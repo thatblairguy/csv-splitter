@@ -3,34 +3,63 @@ Param(
     [string]$fileName
 )
 
-$maxLines = 25
+$maxLines = 50000
+
 $ext = "csv"
 $rootName = "split_"
 
-$reader = new-object System.IO.StreamReader("$fileName")
 $count = 1
-$lineCount = 0
-$outputName = "{0}{1}.{2}" -f ($rootName, $count, $ext)
 
-# Copy header row to all output files
-if(($headerRow = $reader.ReadLine()) -ne $null) {
+$reader = $null
 
-    while(($line = $reader.ReadLine()) -ne $null)
-    {
-        ++$lineCount
-        if($lineCount -eq 1) {
-            Add-Content -path $outputName -value $headerRow
-        }
+try {
+    $reader = [io.file]::OpenText($fileName)
 
-        Add-Content -path $outputName -value $line
-        if($lineCount -ge $maxLines)
-        {
-            ++$count
-            $lineCount = 0
-            $outputName = "{0}{1}.{2}" -f ($rootName, $count, $ext)
+    try {
+        $outputName = "{0}{1}.{2}" -f ($rootName, $count.ToString("000"), $ext)
+
+        "Creating output file $outputName"
+        $writer = [io.file]::CreateText($outputName)
+
+        ++$count
+        $lineCount = 0
+
+        $headerRow = $reader.ReadLine()
+
+        while( $reader.EndOfStream -ne $True ) {
+
+            "Reading up to $maxLines lines."
+            while( ($lineCount -lt $maxLines) -and ($reader.EndOfStream -ne $True)) {
+
+                if($lineCount -eq 0) {
+                    $writer.WriteLine( $headerRow )
+                }
+
+                $writer.WriteLine($reader.ReadLine())
+                ++$lineCount
+            }
+
+            if($reader.EndOfStream -ne $True) {
+                "Closing file"
+                $writer.Dispose()
+
+                $outputName = "{0}{1}.{2}" -f ($rootName, $count.ToString("000"), $ext)
+
+                "Creating output file $outputName"
+                $writer = [io.file]::CreateText($outputName)
+                ++$count
+                $lineCount = 0
+            }
         }
     }
-
+    Catch {
+        $_
+    }
+    finally {
+        $writer.Dispose()
+    }
 }
-
-$reader.Close()
+finally {
+    $reader.Dispose()
+}
+exit 1
